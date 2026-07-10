@@ -1,8 +1,6 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 
-Console.WriteLine("Hello, World!");
-
 IHostBuilder builder = Host.CreateDefaultBuilder();
 
 builder.ConfigureServices((context, services) =>
@@ -17,6 +15,7 @@ builder.ConfigureAppConfiguration((context, config) =>
 {
     config.SetBasePath(AppContext.BaseDirectory);
     config.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+    config.AddJsonFile("appsettings.Development.json", optional: true, reloadOnChange: true);
 });
 
 IHost AppHost = builder.Build();
