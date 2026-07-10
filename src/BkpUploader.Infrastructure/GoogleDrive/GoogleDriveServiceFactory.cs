@@ -20,7 +20,7 @@ public sealed class GoogleDriveServiceFactory
 
         GoogleCredential credential = string.IsNullOrWhiteSpace(options.CredentialFilePath)
             ? GoogleCredential.GetApplicationDefault()
-            : GoogleCredential.FromFile(options.CredentialFilePath);
+            : CredentialFactory.FromFile<ServiceAccountCredential>(options.CredentialFilePath).ToGoogleCredential();
 
         credential = credential.CreateScoped(DriveService.ScopeConstants.Drive);
 

@@ -64,10 +64,13 @@ public sealed class GoogleDriveCloudStorageProvider : ICloudStorageProvider
 
         FilesResource.CreateMediaUpload request = _driveService.Files.Create(metadata, content, DefaultMimeType);
         request.Fields = "id, name, size, modifiedTime";
+        request.SupportsAllDrives = true;
 
         await request.UploadAsync(cancellationToken).ConfigureAwait(false);
 
-        GoogleDriveFile response = request.ResponseBody ?? throw new InvalidOperationException("Google Drive upload did not return a file.");
+        GoogleDriveFile response = request.ResponseBody
+            ?? await FindUploadedFileAsync(targetFolderId, fileName, cancellationToken).ConfigureAwait(false)
+            ?? throw new InvalidOperationException("Google Drive upload did not return a file.");
 
         _logger.LogWarning("Uploaded file {FileName} to Google Drive.", fileName);
 
@@ -100,6 +103,8 @@ public sealed class GoogleDriveCloudStorageProvider : ICloudStorageProvider
             request.PageSize = 1000;
             request.Q = $"'{folderId}' in parents and trashed = false";
             request.PageToken = pageToken;
+            request.SupportsAllDrives = true;
+            request.IncludeItemsFromAllDrives = true;
 
             Google.Apis.Drive.v3.Data.FileList response = await request.ExecuteAsync(cancellationToken).ConfigureAwait(false);
 
@@ -134,6 +139,8 @@ public sealed class GoogleDriveCloudStorageProvider : ICloudStorageProvider
         request.Fields = "files(id, name)";
         request.PageSize = 1000;
         request.Q = $"'{_options.RootFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false";
+        request.SupportsAllDrives = true;
+        request.IncludeItemsFromAllDrives = true;
 
         Google.Apis.Drive.v3.Data.FileList response = await request.ExecuteAsync(cancellationToken).ConfigureAwait(false);
         Dictionary<string, string> folderIdsByName = response.Files is null
@@ -148,6 +155,23 @@ public sealed class GoogleDriveCloudStorageProvider : ICloudStorageProvider
             [BackupType.Diff] = GetFolderId(folderIdsByName, _options.DifferentialFolderName),
             [BackupType.TransactionLog] = GetFolderId(folderIdsByName, _options.TransactionLogFolderName)
         };
+    }
+
+    private async Task<GoogleDriveFile?> FindUploadedFileAsync(
+        string folderId,
+        string fileName,
+        CancellationToken cancellationToken)
+    {
+        FilesResource.ListRequest request = _driveService.Files.List();
+        request.Fields = "files(id, name, size, modifiedTime)";
+        request.PageSize = 10;
+        request.Q = $"'{folderId}' in parents and name = '{fileName.Replace("'", "\\'")}' and trashed = false";
+        request.SupportsAllDrives = true;
+        request.IncludeItemsFromAllDrives = true;
+
+        Google.Apis.Drive.v3.Data.FileList response = await request.ExecuteAsync(cancellationToken).ConfigureAwait(false);
+
+        return response.Files?.FirstOrDefault();
     }
 
     private static string GetFolderId(
