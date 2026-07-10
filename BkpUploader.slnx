@@ -1,1 +1,6 @@
-<Solution />
+<Solution>
+  <Project Path="src/BkpUploader.Application/BkpUploader.Application.csproj" />
+  <Project Path="src/BkpUploader.Console/BkpUploader.Console.csproj" />
+  <Project Path="src/BkpUploader.Domain/BkpUploader.Domain.csproj" />
+  <Project Path="src/BkpUploader.Infrastructure/BkpUploader.Infrastructure.csproj" />
+</Solution>
