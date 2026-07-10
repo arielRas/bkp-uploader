@@ -402,5 +402,8 @@ FodyWeavers.xsd
 # IA Agents
 *AGENTS.md
 
+# Ignorar configuracion de claves google
+*GoogleDriveCredential.json
+
 # Ignorar appsettings.Development.json
 **/appsettings.Development.json
