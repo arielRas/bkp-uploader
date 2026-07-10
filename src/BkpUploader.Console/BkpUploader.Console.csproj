@@ -5,6 +5,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
   </PropertyGroup>
 
   <ItemGroup>
@@ -13,6 +15,11 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.9" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.9" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BkpUploader.Application\BkpUploader.Application.csproj" />
+    <ProjectReference Include="..\BkpUploader.Infrastructure\BkpUploader.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>
