@@ -208,7 +208,7 @@ Reglas:
 
 - Mantener los commits sectorizados por capa cuando sea posible.
 - Usar `Application`, `Infrastructure`, `Console`, `Domain` o un nombre de capa equivalente para el prefijo.
-- El mensaje debe ser breve y descriptivo.
+- El mensaje debe estar en español, ser breve y descriptivo.
 - Si un cambio cruza varias capas, separar en commits distintos antes de mezclar todo en uno solo.
 
 ## Modelo de retencion
