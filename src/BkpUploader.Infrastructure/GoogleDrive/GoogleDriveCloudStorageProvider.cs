@@ -13,43 +13,30 @@ public sealed class GoogleDriveCloudStorageProvider : ICloudStorageProvider
 
     private readonly DriveService _driveService;
     private readonly GoogleDriveOptions _options;
+    private readonly IBackupNameParser _backupNameParser;
     private readonly ILogger<GoogleDriveCloudStorageProvider> _logger;
 
     public GoogleDriveCloudStorageProvider(
         GoogleDriveServiceFactory serviceFactory,
+        IBackupNameParser backupNameParser,
         IOptions<GoogleDriveOptions> options,
         ILogger<GoogleDriveCloudStorageProvider> logger)
     {
         _driveService = serviceFactory.Create();
+        _backupNameParser = backupNameParser;
         _options = options.Value;
         _logger = logger;
     }
 
     public async Task<IReadOnlyList<CloudBackupFile>> ListBackupsAsync(CancellationToken cancellationToken = default)
     {
-        FilesResource.ListRequest request = _driveService.Files.List();
-        request.Fields = "files(id, name, size, modifiedTime)";
-        request.PageSize = 1000;
-        request.Q = string.IsNullOrWhiteSpace(_options.RootFolderId)
-            ? "trashed = false"
-            : $"'{_options.RootFolderId}' in parents and trashed = false";
-
-        Google.Apis.Drive.v3.Data.FileList response = await request.ExecuteAsync(cancellationToken).ConfigureAwait(false);
-
         List<CloudBackupFile> backups = new();
 
-        if (response.Files is null)
-        {
-            return backups;
-        }
+        IReadOnlyDictionary<BackupType, string> folderIds = await ResolveBackupFolderIdsAsync(cancellationToken).ConfigureAwait(false);
 
-        foreach (GoogleDriveFile file in response.Files)
+        foreach (string folderId in folderIds.Values)
         {
-            backups.Add(new CloudBackupFile(
-                file.Id ?? string.Empty,
-                file.Name ?? string.Empty,
-                file.Size ?? 0,
-                file.ModifiedTimeDateTimeOffset ?? DateTimeOffset.UnixEpoch));
+            backups.AddRange(await ListFilesInFolderAsync(folderId, cancellationToken).ConfigureAwait(false));
         }
 
         return backups;
@@ -60,15 +47,20 @@ public sealed class GoogleDriveCloudStorageProvider : ICloudStorageProvider
         string fileName,
         CancellationToken cancellationToken = default)
     {
+        if (!_backupNameParser.TryParse(fileName, out ParsedBackupName? parsedName) || parsedName is null)
+        {
+            throw new InvalidOperationException($"Unable to determine backup type from file name '{fileName}'.");
+        }
+
+        IReadOnlyDictionary<BackupType, string> folderIds = await ResolveBackupFolderIdsAsync(cancellationToken).ConfigureAwait(false);
+        string targetFolderId = folderIds[parsedName.BackupType];
+
         GoogleDriveFile metadata = new()
         {
             Name = fileName
         };
 
-        if (!string.IsNullOrWhiteSpace(_options.RootFolderId))
-        {
-            metadata.Parents = new List<string> { _options.RootFolderId };
-        }
+        metadata.Parents = new List<string> { targetFolderId };
 
         FilesResource.CreateMediaUpload request = _driveService.Files.Create(metadata, content, DefaultMimeType);
         request.Fields = "id, name, size, modifiedTime";
@@ -77,7 +69,7 @@ public sealed class GoogleDriveCloudStorageProvider : ICloudStorageProvider
 
         GoogleDriveFile response = request.ResponseBody ?? throw new InvalidOperationException("Google Drive upload did not return a file.");
 
-        _logger.LogInformation("Uploaded file {FileName} to Google Drive.", fileName);
+        _logger.LogWarning("Uploaded file {FileName} to Google Drive.", fileName);
 
         return new CloudBackupFile(
             response.Id ?? string.Empty,
@@ -91,6 +83,87 @@ public sealed class GoogleDriveCloudStorageProvider : ICloudStorageProvider
         FilesResource.DeleteRequest request = _driveService.Files.Delete(fileId);
         await request.ExecuteAsync(cancellationToken).ConfigureAwait(false);
 
-        _logger.LogInformation("Deleted file {FileId} from Google Drive.", fileId);
+        _logger.LogWarning("Deleted file {FileId} from Google Drive.", fileId);
+    }
+
+    private async Task<IReadOnlyList<CloudBackupFile>> ListFilesInFolderAsync(
+        string folderId,
+        CancellationToken cancellationToken)
+    {
+        List<CloudBackupFile> backups = new();
+        string? pageToken = null;
+
+        do
+        {
+            FilesResource.ListRequest request = _driveService.Files.List();
+            request.Fields = "nextPageToken, files(id, name, size, modifiedTime)";
+            request.PageSize = 1000;
+            request.Q = $"'{folderId}' in parents and trashed = false";
+            request.PageToken = pageToken;
+
+            Google.Apis.Drive.v3.Data.FileList response = await request.ExecuteAsync(cancellationToken).ConfigureAwait(false);
+
+            if (response.Files is not null)
+            {
+                foreach (GoogleDriveFile file in response.Files)
+                {
+                    backups.Add(new CloudBackupFile(
+                        file.Id ?? string.Empty,
+                        file.Name ?? string.Empty,
+                        file.Size ?? 0,
+                        file.ModifiedTimeDateTimeOffset ?? DateTimeOffset.UnixEpoch));
+                }
+            }
+
+            pageToken = response.NextPageToken;
+        }
+        while (!string.IsNullOrWhiteSpace(pageToken));
+
+        return backups;
+    }
+
+    private async Task<IReadOnlyDictionary<BackupType, string>> ResolveBackupFolderIdsAsync(
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(_options.RootFolderId))
+        {
+            throw new InvalidOperationException("GoogleDriveOptions.RootFolderId is required.");
+        }
+
+        FilesResource.ListRequest request = _driveService.Files.List();
+        request.Fields = "files(id, name)";
+        request.PageSize = 1000;
+        request.Q = $"'{_options.RootFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false";
+
+        Google.Apis.Drive.v3.Data.FileList response = await request.ExecuteAsync(cancellationToken).ConfigureAwait(false);
+        Dictionary<string, string> folderIdsByName = response.Files is null
+            ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            : response.Files
+                .Where(file => !string.IsNullOrWhiteSpace(file.Name) && !string.IsNullOrWhiteSpace(file.Id))
+                .ToDictionary(file => file.Name!, file => file.Id!, StringComparer.OrdinalIgnoreCase);
+
+        return new Dictionary<BackupType, string>
+        {
+            [BackupType.Full] = GetFolderId(folderIdsByName, _options.FullFolderName),
+            [BackupType.Diff] = GetFolderId(folderIdsByName, _options.DifferentialFolderName),
+            [BackupType.TransactionLog] = GetFolderId(folderIdsByName, _options.TransactionLogFolderName)
+        };
+    }
+
+    private static string GetFolderId(
+        IReadOnlyDictionary<string, string> folderIdsByName,
+        string folderName)
+    {
+        if (string.IsNullOrWhiteSpace(folderName))
+        {
+            throw new InvalidOperationException("Google Drive folder names cannot be empty.");
+        }
+
+        if (!folderIdsByName.TryGetValue(folderName, out string? folderId))
+        {
+            throw new InvalidOperationException($"Google Drive folder '{folderName}' was not found under the configured root folder.");
+        }
+
+        return folderId;
     }
 }
