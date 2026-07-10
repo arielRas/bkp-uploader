@@ -399,9 +399,6 @@ FodyWeavers.xsd
 # JetBrains Rider
 *.sln.iml
 
-# IA Agents
-*AGENTS.md
-
 # Ignorar configuracion de claves google
 *GoogleDriveCredential.json
 
