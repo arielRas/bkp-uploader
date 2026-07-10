@@ -30,9 +30,9 @@ public sealed class GoogleDriveCloudStorageProvider : ICloudStorageProvider
         FilesResource.ListRequest request = _driveService.Files.List();
         request.Fields = "files(id, name, size, modifiedTime)";
         request.PageSize = 1000;
-        request.Q = string.IsNullOrWhiteSpace(_options.FolderId)
+        request.Q = string.IsNullOrWhiteSpace(_options.RootFolderId)
             ? "trashed = false"
-            : $"'{_options.FolderId}' in parents and trashed = false";
+            : $"'{_options.RootFolderId}' in parents and trashed = false";
 
         Google.Apis.Drive.v3.Data.FileList response = await request.ExecuteAsync(cancellationToken).ConfigureAwait(false);
 
@@ -65,9 +65,9 @@ public sealed class GoogleDriveCloudStorageProvider : ICloudStorageProvider
             Name = fileName
         };
 
-        if (!string.IsNullOrWhiteSpace(_options.FolderId))
+        if (!string.IsNullOrWhiteSpace(_options.RootFolderId))
         {
-            metadata.Parents = new List<string> { _options.FolderId };
+            metadata.Parents = new List<string> { _options.RootFolderId };
         }
 
         FilesResource.CreateMediaUpload request = _driveService.Files.Create(metadata, content, DefaultMimeType);

@@ -6,5 +6,11 @@ public sealed class GoogleDriveOptions
 
     public string? CredentialFilePath { get; set; }
 
-    public string? FolderId { get; set; }
+    public string? RootFolderId { get; set; }
+
+    public string FullFolderName { get; set; } = "Full";
+
+    public string DifferentialFolderName { get; set; } = "Differential";
+
+    public string TransactionLogFolderName { get; set; } = "TransactionLog";
 }
