@@ -1,8 +1,8 @@
 using BkpUploader.Application.Abstractions;
 using BkpUploader.Application.Options;
 using BkpUploader.Infrastructure.Common;
+using BkpUploader.Infrastructure.CloudflareR2;
 using BkpUploader.Infrastructure.FileSystem;
-using BkpUploader.Infrastructure.GoogleDrive;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -16,12 +16,12 @@ public static class InfrastructureServiceExtensions
     {
         services.Configure<BackupOptions>(configuration.GetSection(nameof(BackupOptions)));
         services.Configure<BackupRetentionOptions>(configuration.GetSection(nameof(BackupRetentionOptions)));
-        services.Configure<GoogleDriveOptions>(configuration.GetSection(nameof(GoogleDriveOptions)));
+        services.Configure<CloudflareR2Options>(configuration.GetSection(nameof(CloudflareR2Options)));
 
         services.AddSingleton<IClock, SystemClock>();
         services.AddSingleton<IFileSystemService, PhysicalFileSystemService>();
-        services.AddSingleton<GoogleDriveServiceFactory>();
-        services.AddSingleton<ICloudStorageProvider, GoogleDriveCloudStorageProvider>();
+        services.AddSingleton<CloudflareR2ClientFactory>();
+        services.AddSingleton<ICloudStorageProvider, CloudflareR2CloudStorageProvider>();
 
         return services;
     }
