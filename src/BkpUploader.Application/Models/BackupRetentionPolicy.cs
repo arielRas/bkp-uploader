@@ -1,11 +1,16 @@
+using BkpUploader.Application.Options;
+
 namespace BkpUploader.Application.Models;
 
 public sealed record BackupRetentionPolicy(TimeSpan FullRetention, TimeSpan DiffRetention, TimeSpan TransactionLogRetention)
 {
-    public static BackupRetentionPolicy Default { get; } = new(
-        TimeSpan.FromDays(30),
-        TimeSpan.FromDays(7),
-        TimeSpan.FromDays(3));
+    public static BackupRetentionPolicy FromOptions(BackupRetentionOptions options)
+    {
+        return new BackupRetentionPolicy(
+            TimeSpan.FromDays(options.FullDays),
+            TimeSpan.FromDays(options.DifferentialDays),
+            TimeSpan.FromDays(options.TransactionLogDays));
+    }
 
     public TimeSpan GetRetentionFor(BackupType backupType)
     {
