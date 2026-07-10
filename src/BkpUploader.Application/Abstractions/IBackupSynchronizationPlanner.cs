@@ -5,7 +5,7 @@ namespace BkpUploader.Application.Abstractions;
 public interface IBackupSynchronizationPlanner
 {
     BackupSynchronizationPlan BuildPlan(
-        IReadOnlyCollection<LocalBackupFile> localBackups,
+        BackupDiscoveryResult discoveryResult,
         IReadOnlyCollection<CloudBackupFile> cloudBackups,
         BackupRetentionPolicy retentionPolicy,
         DateTimeOffset utcNow);
